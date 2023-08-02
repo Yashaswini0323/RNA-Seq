@@ -1,0 +1,38 @@
+# Makefile for RNA-Seq analysis
+
+# Define variables for input and output files/directories
+FASTQ_DIR = data/fastq
+ALIGN_DIR = results/alignment
+COUNTS_DIR = results/counts
+
+# Define the targets and dependencies
+all: align counts
+
+# Target to download and unpack the example data
+download_data:
+	curl -O http://data.biostarhandbook.com/books/rnaseq/code.tar.gz
+	tar -xvf code.tar.gz
+	rm code.tar.gz
+
+# Target to align the reads using a reference genome
+align: $(FASTQ_DIR)/sample1.fastq $(FASTQ_DIR)/sample2.fastq
+	mkdir -p $(ALIGN_DIR)
+	hisat2-build reference_genome.fa reference_genome
+	hisat2 -x reference_genome -1 $(FASTQ_DIR)/sample1.fastq -2 $(FASTQ_DIR)/sample2.fastq -S $(ALIGN_DIR)/aligned.sam
+
+# Target to convert SAM to BAM and sort the BAM file
+$(ALIGN_DIR)/aligned.bam: $(ALIGN_DIR)/aligned.sam
+	samtools view -S -b $(ALIGN_DIR)/aligned.sam > $(ALIGN_DIR)/aligned.bam
+	samtools sort $(ALIGN_DIR)/aligned.bam -o $(ALIGN_DIR)/aligned.sorted.bam
+
+# Target to count the reads for each gene
+counts: $(ALIGN_DIR)/aligned.sorted.bam
+	mkdir -p $(COUNTS_DIR)
+	htseq-count -f bam $(ALIGN_DIR)/aligned.sorted.bam reference_genes.gtf > $(COUNTS_DIR)/counts.txt
+
+# Clean up intermediate files
+clean:
+	rm -rf $(ALIGN_DIR) $(COUNTS_DIR)
+
+# Add a .PHONY target to prevent conflicts with files of the same name
+.PHONY: all download_data align counts clean
